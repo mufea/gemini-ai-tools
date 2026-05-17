@@ -1,0 +1,180 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: {uid}
+// Fields:
+//   - uid: string (required) - Firebase Auth UID
+//   - email: string (required) - User email
+//   - displayName: string (optional) - User display name
+//   - photoURL: string (optional) - User photo URL
+//   - plan: string (required, enum: ['free', 'text_only', 'basic', 'medium', 'advance']) - Subscription plan
+//   - usageCount: number (optional) - Daily usage count
+//   - lastUsageDate: string (optional) - Date of last usage
+//   - createdAt: timestamp (optional) - Creation time
+//   - apiKeys: map (optional) - User-provided API keys
+//
+// Collection: generations
+// Document ID: {generationId}
+// Fields:
+//   - uid: string (required) - Owner UID
+//   - type: string (required, enum: ['text', 'image', 'video', 'music', 'speech']) - Generation type
+//   - prompt: string (required) - User prompt
+//   - content: string (required) - Generated content
+//   - lyrics: string (optional) - Song lyrics
+//   - timestamp: number (required) - Generation timestamp
+//   - createdAt: timestamp (required) - Creation time
+//   - isPublic: boolean (optional) - Shared with community
+//   - authorName: string (optional) - Author name
+//   - authorPhoto: string (optional) - Author photo URL
+//   - projectId: string (optional) - Project ID
+//
+// Collection: projects
+// Document ID: {projectId}
+// Fields:
+//   - uid: string (required) - Owner UID
+//   - name: string (required) - Project name
+//   - description: string (optional) - Project description
+//   - createdAt: timestamp (required) - Creation time
+//
+// Collection: prompts
+// Document ID: {promptId}
+// Fields:
+//   - uid: string (required) - Owner UID
+//   - title: string (required) - Prompt title
+//   - content: string (required) - Prompt content
+//   - category: string (optional) - Prompt category
+//   - type: string (optional, enum: ['text', 'image', 'video', 'music', 'speech', 'all']) - Prompt type
+//   - createdAt: timestamp (required) - Creation time
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (request.auth.token.email == "mufeas@gmail.com");
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.uid is string &&
+             data.email is string &&
+             (data.plan in ['free', 'text_only', 'basic', 'medium', 'advance']);
+    }
+
+    function isValidGeneration(data) {
+      return data.uid == request.auth.uid &&
+             data.type in ['text', 'image', 'video', 'music', 'speech'] &&
+             data.prompt is string &&
+             data.timestamp is number;
+    }
+
+    function isValidProject(data) {
+      return data.uid == request.auth.uid &&
+             data.name is string && data.name.size() > 0;
+    }
+
+    function isValidPrompt(data) {
+      return data.uid == request.auth.uid &&
+             data.title is string &&
+             data.content is string;
+    }
+
+    // ===============================================================
+    // Match Rules
+    // ===============================================================
+
+    // ===============================================================
+    // Rules for User Profile
+    // ===============================================================
+    match /users/{userId} {
+      // Allow read if owner or admin
+      // Temporary broadening for debug on custom domains: allow read: if isAuthenticated();
+      allow read: if isAuthenticated();
+      
+      allow create: if isOwner(userId) && 
+                      hasRequiredFields(['uid', 'email', 'plan']) &&
+                      request.resource.data.plan == 'free';
+                      
+      allow update: if isOwner(userId) && (
+        // Only allow certain fields to be updated by the user
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL', 'apiKeys', 'lastUsageDate', 'usageCount', 'updatedAt', 'plan']) ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Allow the connection test to succeed
+    match /test/connection {
+      allow read: if true;
+    }
+
+    match /generations/{genId} {
+      allow read: if (resource.data.get('isPublic', false) == true) || (isAuthenticated() && (resource.data.uid == request.auth.uid || isAdmin()));
+      allow list: if (resource.data.get('isPublic', false) == true) || (isAuthenticated() && (resource.data.uid == request.auth.uid || isAdmin()));
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow delete: if isAuthenticated() && (resource.data.uid == request.auth.uid || isAdmin());
+    }
+
+    match /projects/{projectId} {
+      allow read: if isAuthenticated() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow list: if isAuthenticated() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAuthenticated() && (resource.data.uid == request.auth.uid || isAdmin());
+    }
+
+    match /prompts/{promptId} {
+      allow read: if (resource.data.get('isPublic', false) == true) || (isAuthenticated() && (resource.data.uid == request.auth.uid || isAdmin()));
+      allow list: if (resource.data.get('isPublic', false) == true) || (isAuthenticated() && (resource.data.uid == request.auth.uid || isAdmin()));
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAuthenticated() && (resource.data.uid == request.auth.uid || isAdmin());
+    }
+
+    match /transactions/{orderId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin();
+    }
+
+    function userIdFromResource() {
+      return resource.data.get('uid', resource.data.get('userId', ''));
+    }
+
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

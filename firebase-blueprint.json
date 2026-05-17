@@ -1,0 +1,113 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores user subscription details and usage limits.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "plan": { "type": "string", "enum": ["free", "text_only", "basic", "medium", "advance"] },
+        "usageCount": { "type": "integer" },
+        "lastUsageDate": { "type": "string", "format": "date" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "apiKeys": {
+          "type": "object",
+          "description": "User-provided API keys for various services",
+          "properties": {
+            "gemini": { "type": "string" },
+            "openai": { "type": "string" },
+            "anthropic": { "type": "string" }
+          }
+        }
+      },
+      "required": ["uid", "email", "plan"]
+    },
+    "Generation": {
+      "title": "Generation History",
+      "description": "Stores the history of generated content for a user.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Owner UID" },
+        "type": { "type": "string", "enum": ["text", "image", "video", "music", "speech"] },
+        "prompt": { "type": "string" },
+        "content": { "type": "string", "description": "Generated content (text or URL)" },
+        "lyrics": { "type": "string" },
+        "timestamp": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "isPublic": { "type": "boolean", "description": "Whether this generation is shared with the community" },
+        "authorName": { "type": "string" },
+        "authorPhoto": { "type": "string" },
+        "projectId": { "type": "string", "description": "ID of the project/folder this belongs to" }
+      },
+      "required": ["uid", "type", "prompt", "content", "timestamp"]
+    },
+    "Project": {
+      "title": "Project Folder",
+      "description": "Folders to organize generations.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Owner UID" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name"]
+    },
+    "Transaction": {
+      "title": "Payment Transaction",
+      "description": "Stores details of Midtrans payment transactions.",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "userId": { "type": "string" },
+        "planId": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "settlement", "capture", "expire", "cancel", "deny"] },
+        "paymentType": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["orderId", "userId", "planId", "amount", "status"]
+    },
+    "Prompt": {
+      "title": "Saved Prompt",
+      "description": "User's library of saved prompts.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Owner UID" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "category": { "type": "string" },
+        "type": { "type": "string", "enum": ["text", "image", "video", "music", "speech", "all"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "title", "content"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/generations/{generationId}": {
+      "schema": "Generation",
+      "description": "Generation history documents"
+    },
+    "/projects/{projectId}": {
+      "schema": "Project",
+      "description": "Project folder documents"
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Payment transaction logs"
+    },
+    "/prompts/{promptId}": {
+      "schema": "Prompt",
+      "description": "Saved prompt library documents"
+    }
+  }
+}
